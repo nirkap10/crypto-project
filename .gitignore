@@ -1,42 +1,33 @@
-# === Build and IDE files ===
+HELP.md
 target/
-build/
+.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
-!**/src/main/**/build/
-!**/src/test/**/build/
 
-# === IDE ===
-.idea/
-*.iml
-*.ipr
-*.iws
-.vscode/
-
-# === Maven Wrapper ===
-.mvn/wrapper/maven-wrapper.jar
-.mvn/wrapper/maven-wrapper.properties
-
-# === Spring Tools Suite (STS) ===
+### STS ###
 .apt_generated
 .classpath
 .factorypath
 .project
-.settings/
+.settings
 .springBeans
 .sts4-cache
 
-# === NetBeans ===
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
 /nbproject/private/
 /nbbuild/
 /dist/
 /nbdist/
 /.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
 
-# === Logs and Environment ===
-*.log
-*.env
-
-# === System files ===
-.DS_Store
-HELP.md
+### VS Code ###
+.vscode/
