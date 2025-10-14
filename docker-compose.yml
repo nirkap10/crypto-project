@@ -1,0 +1,41 @@
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: crypto_postgres
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: crypto_db
+    ports:
+      - "5432:5432"                  # host:container
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d crypto_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - crypto_net
+
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: crypto_pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"                    # open pgAdmin at http://localhost:5050
+    depends_on:
+      - postgres
+    networks:
+      - crypto_net
+
+networks:
+  crypto_net:
+    driver: bridge
+
+volumes:
+  pg_data:
+  pgadmin_data:
