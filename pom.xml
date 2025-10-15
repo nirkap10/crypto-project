@@ -13,32 +13,24 @@
     <module>price-ingestor</module>
   </modules>
 
-  <!-- נוח שה-parent הכללי יהיה Spring Boot -->
-  <parent>
-    <groupId>org.springframework.boot</groupId>
-    <artifactId>spring-boot-starter-parent</artifactId>
-    <version>3.5.6</version>
-    <relativePath/>
-  </parent>
-
   <properties>
     <java.version>21</java.version>
   </properties>
 
-
-<dependencyManagement>
+  <!-- Spring Boot versions for all children -->
+  <dependencyManagement>
     <dependencies>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-dependencies</artifactId>
-            <version>3.5.6</version>
-            <type>pom</type>
-            <scope>import</scope>
-        </dependency>
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-dependencies</artifactId>
+        <version>3.5.6</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
     </dependencies>
-</dependencyManagement>
+  </dependencyManagement>
 
-  <!-- Because we’re NOT using spring-boot-starter-parent, manage plugins here -->
+  <!-- Because we’re NOT using spring-boot-starter-parent, set plugin versions here -->
   <build>
     <pluginManagement>
       <plugins>
