@@ -11,6 +11,7 @@
   <modules>
     <module>api</module>
     <module>price-ingestor</module>
+    <module>user-service</module>
   </modules>
 
   <properties>
