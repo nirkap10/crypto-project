@@ -21,11 +21,9 @@ public class UserRepository {
     }
 
     public User save(User user) {
-        String sql = """
-            INSERT INTO users (username, email, first_name, last_name, created_at, updated_at)
-            VALUES (:username, :email, :first_name, :last_name, :created_at, :updated_at)
-            RETURNING id, username, email, first_name, last_name, created_at, updated_at
-            """;
+        String sql = "INSERT INTO users (username, email, first_name, last_name, created_at, updated_at) " +
+                     "VALUES (:username, :email, :first_name, :last_name, :created_at, :updated_at) " +
+                     "RETURNING id, username, email, first_name, last_name, created_at, updated_at";
 
         LocalDateTime now = LocalDateTime.now();
         MapSqlParameterSource params = new MapSqlParameterSource()
@@ -57,11 +55,8 @@ public class UserRepository {
     }
 
     public Optional<User> findById(Long id) {
-        String sql = """
-            SELECT id, username, email, first_name, last_name, created_at, updated_at
-            FROM users
-            WHERE id = :id
-            """;
+        String sql = "SELECT id, username, email, first_name, last_name, created_at, updated_at " +
+                     "FROM users WHERE id = :id";
 
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("id", id);
@@ -83,11 +78,8 @@ public class UserRepository {
     }
 
     public Optional<User> findByUsername(String username) {
-        String sql = """
-            SELECT id, username, email, first_name, last_name, created_at, updated_at
-            FROM users
-            WHERE username = :username
-            """;
+        String sql = "SELECT id, username, email, first_name, last_name, created_at, updated_at " +
+                     "FROM users WHERE username = :username";
 
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("username", username);
@@ -109,11 +101,8 @@ public class UserRepository {
     }
 
     public Optional<User> findByEmail(String email) {
-        String sql = """
-            SELECT id, username, email, first_name, last_name, created_at, updated_at
-            FROM users
-            WHERE email = :email
-            """;
+        String sql = "SELECT id, username, email, first_name, last_name, created_at, updated_at " +
+                     "FROM users WHERE email = :email";
 
         MapSqlParameterSource params = new MapSqlParameterSource()
             .addValue("email", email);
@@ -135,11 +124,8 @@ public class UserRepository {
     }
 
     public List<User> findAll() {
-        String sql = """
-            SELECT id, username, email, first_name, last_name, created_at, updated_at
-            FROM users
-            ORDER BY created_at DESC
-            """;
+        String sql = "SELECT id, username, email, first_name, last_name, created_at, updated_at " +
+                     "FROM users ORDER BY created_at DESC";
 
         return jdbc.query(sql, (rs, rowNum) -> new User(
             rs.getLong("id"),

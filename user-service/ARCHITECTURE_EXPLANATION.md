@@ -112,6 +112,9 @@ CREATE TABLE IF NOT EXISTS users (
 
 **Why Necessary**:
 - **Separation of Concerns**: Database logic separated from business logic
+  - **Database Logic** (Repository): Handles SQL queries, parameter binding, and row mapping. Focuses on "HOW to get/store data"
+  - **Business Logic** (Service): Handles rules, validations, and workflows. Focuses on "WHAT the application should do"
+  - Example: Repository executes `SELECT * FROM users WHERE username = :username`, while Service decides "if username exists, throw error"
 - **SQL Injection Prevention**: Named parameters prevent SQL injection
 - **Reusability**: Repository methods can be reused across services
 - **Testability**: Can be mocked for unit testing
@@ -124,16 +127,226 @@ CREATE TABLE IF NOT EXISTS users (
 - `findByEmail(String)`: Get user by email (for registration checks)
 - `findAll()`: Get all users (for admin/list views)
 
+**What Are Named Parameters?**:
+Named parameters use descriptive names (like `:username`, `:email`) instead of positional placeholders (`?`).
+
+**Example from UserRepository**:
+```java
+String sql = "SELECT * FROM users WHERE username = :username";
+MapSqlParameterSource params = new MapSqlParameterSource()
+    .addValue("username", username);  // Binds "username" to :username
+```
+
+**Comparison: Named Parameters vs Positional Parameters**:
+
+| Aspect | Named Parameters (`:username`) | Positional Parameters (`?`) |
+|--------|-------------------------------|----------------------------|
+| **Readability** | ✅ Clear: `WHERE username = :username AND email = :email` | ❌ Unclear: `WHERE username = ? AND email = ?` |
+| **Order Dependency** | ✅ Order doesn't matter | ❌ Must match exact order |
+| **SQL Injection** | ✅ Safe (auto-escaped) | ✅ Safe (if used correctly) |
+| **Maintenance** | ✅ Easy to add/remove parameters | ❌ Hard to maintain with many parameters |
+
 **Why NamedParameterJdbcTemplate?**:
-- More readable than positional parameters (`?`)
-- Prevents SQL injection
-- Easy parameter binding
-- Matches your existing codebase pattern
+- **More Readable**: `:username` is clearer than `?` (especially with multiple parameters)
+- **Prevents SQL Injection**: Parameters are automatically escaped and sanitized
+- **Easy Parameter Binding**: Map parameter names to values explicitly (order doesn't matter)
+- **Type Safety**: Compile-time checking of parameter names
+- **Maintainability**: Easier to add/remove parameters without reordering
+- **Matches Pattern**: Consistent with your existing `PriceRepository` codebase
+
+**SQL Injection Prevention Example**:
+```java
+// ❌ UNSAFE - String concatenation (DO NOT DO THIS!)
+String sql = "SELECT * FROM users WHERE username = '" + username + "'";
+// If username = "admin' OR '1'='1", this becomes:
+// SELECT * FROM users WHERE username = 'admin' OR '1'='1' (SQL INJECTION!)
+
+// ✅ SAFE - Named parameters (automatically escaped)
+String sql = "SELECT * FROM users WHERE username = :username";
+MapSqlParameterSource params = new MapSqlParameterSource()
+    .addValue("username", username);  // Automatically escapes special characters
+```
 
 **Error Handling**:
 - `DataIntegrityViolationException`: Catches unique constraint violations
 - Converts database errors to meaningful business exceptions
 - `EmptyResultDataAccessException`: Returns `Optional.empty()` for not found
+
+**Comparison: Database Logic vs Business Logic**:
+
+| Aspect | Database Logic (Repository) | Business Logic (Service) |
+|--------|----------------------------|--------------------------|
+| **Purpose** | "HOW to get/store data" | "WHAT should the application do" |
+| **Focus** | SQL queries, parameter binding, row mapping | Rules, validations, workflows |
+| **Example** | `SELECT * FROM users WHERE id = :id` | "If user not found, throw UserNotFoundException" |
+| **Responsibilities** | Execute SQL, map rows to objects | Enforce business rules, coordinate operations |
+| **Error Handling** | Database exceptions (SQLException, DataIntegrityViolationException) | Business exceptions (UserNotFoundException, IllegalArgumentException) |
+
+**How Does Repository Achieve Separation?**
+
+The Repository pattern creates separation through **abstraction** and **clear boundaries**:
+
+1. **Abstraction Layer**: Repository hides all database implementation details from Service
+   - Service doesn't see SQL queries
+   - Service doesn't see JDBC code
+   - Service doesn't see database-specific exceptions
+   - Service only sees simple method calls like `findById(id)` or `save(user)`
+
+2. **Simple Interface**: Repository provides clean, domain-focused methods
+   ```java
+   // Service sees this simple interface:
+   Optional<User> findById(Long id);
+   Optional<User> findByUsername(String username);
+   User save(User user);
+   
+   // Service DOESN'T see:
+   // - SQL queries
+   // - NamedParameterJdbcTemplate
+   // - MapSqlParameterSource
+   // - ResultSet mapping
+   // - Database connection details
+   ```
+
+3. **Dependency Direction**: Service depends on Repository (one-way dependency)
+   - Service knows about Repository
+   - Repository doesn't know about Service
+   - Repository doesn't know about business rules
+   - Repository doesn't know about DTOs
+
+4. **Single Responsibility**: Each layer has one clear job
+   - Repository: "Get/store data from database"
+   - Service: "Enforce business rules and coordinate operations"
+
+**Concrete Example: How Separation Works**
+
+**In UserService.createUser()** (Business Logic):
+```java
+// Service layer - Business logic
+public UserResponse createUser(CreateUserRequest request) {
+    // Business rule: Check if username exists
+    userRepository.findByUsername(request.username())  // ← Simple method call
+        .ifPresent(user -> {
+            throw new IllegalArgumentException("Username already exists");  // Business rule
+        });
+    
+    // Business rule: Check if email exists
+    userRepository.findByEmail(request.email())  // ← Simple method call
+        .ifPresent(user -> {
+            throw new IllegalArgumentException("Email already exists");  // Business rule
+        });
+    
+    // Create user entity
+    User user = new User(...);
+    
+    // Save to database (delegates to Repository)
+    User savedUser = userRepository.save(user);  // ← Simple method call
+    
+    // Business rule: Return DTO, not domain model
+    return UserResponse.from(savedUser);  // Business rule
+}
+```
+
+**In UserRepository.findByUsername()** (Database Logic):
+```java
+// Repository layer - Database logic
+public Optional<User> findByUsername(String username) {
+    // Database logic: SQL query
+    String sql = "SELECT * FROM users WHERE username = :username";
+    
+    // Database logic: Parameter binding
+    MapSqlParameterSource params = new MapSqlParameterSource()
+        .addValue("username", username);
+    
+    // Database logic: Execute query and map results
+    try {
+        User user = jdbc.queryForObject(sql, params, (rs, rowNum) -> new User(
+            rs.getLong("id"),
+            rs.getString("username"),
+            // ... map database rows to Java object
+        ));
+        return Optional.ofNullable(user);
+    } catch (EmptyResultDataAccessException e) {
+        return Optional.empty();  // Database-level error handling
+    }
+}
+```
+
+**What Service Doesn't Know**:
+- ❌ Service doesn't know about SQL
+- ❌ Service doesn't know about `NamedParameterJdbcTemplate`
+- ❌ Service doesn't know about `MapSqlParameterSource`
+- ❌ Service doesn't know about `ResultSet` mapping
+- ❌ Service doesn't know about database connection pooling
+- ❌ Service doesn't know about database-specific exceptions
+
+**What Repository Doesn't Know**:
+- ❌ Repository doesn't know about business rules (e.g., "username must be unique")
+- ❌ Repository doesn't know about DTOs (`UserResponse`, `CreateUserRequest`)
+- ❌ Repository doesn't know about HTTP status codes (404, 400, etc.)
+- ❌ Repository doesn't know about `@Transactional` annotations
+- ❌ Repository doesn't know about REST API endpoints
+
+**Benefits of This Separation**:
+
+1. **Testability**: You can test Service without a real database
+   ```java
+   // Mock the repository in tests
+   UserRepository mockRepo = mock(UserRepository.class);
+   when(mockRepo.findByUsername("test")).thenReturn(Optional.empty());
+   UserService service = new UserService(mockRepo);
+   ```
+
+2. **Flexibility**: You can change database without changing Service
+   - Switch from PostgreSQL to MySQL? Only change Repository
+   - Switch from JDBC to JPA? Only change Repository
+   - Service code remains unchanged
+
+3. **Maintainability**: Changes are isolated
+   - Need to change SQL query? Only modify Repository
+   - Need to change business rule? Only modify Service
+
+4. **Reusability**: Repository can be used by multiple Services
+   - `UserService` uses `UserRepository`
+   - `AuthService` can also use `UserRepository`
+   - `AdminService` can also use `UserRepository`
+
+**What Would Happen Without Separation? (Bad Example)**
+
+If business logic and database logic were mixed:
+
+```java
+// ❌ BAD: Service with database logic mixed in
+@Service
+public class UserService {
+    private final NamedParameterJdbcTemplate jdbc;  // ← Database detail exposed!
+    
+    public UserResponse createUser(CreateUserRequest request) {
+        // Business logic mixed with database logic
+        String sql = "SELECT * FROM users WHERE username = :username";  // ← SQL in Service!
+        MapSqlParameterSource params = new MapSqlParameterSource()
+            .addValue("username", request.username());
+        
+        try {
+            User existing = jdbc.queryForObject(sql, params, ...);  // ← JDBC in Service!
+            throw new IllegalArgumentException("Username exists");
+        } catch (EmptyResultDataAccessException e) {
+            // Continue...
+        }
+        
+        // More SQL in Service...
+        String insertSql = "INSERT INTO users ...";  // ← More SQL!
+        // ...
+    }
+}
+```
+
+**Problems with Mixed Approach**:
+- ❌ Service is tightly coupled to database implementation
+- ❌ Can't test Service without database
+- ❌ Can't change database without changing Service
+- ❌ Business rules mixed with SQL queries
+- ❌ Hard to reuse database operations
+- ❌ Violates Single Responsibility Principle
 
 ---
 
@@ -147,27 +360,38 @@ CREATE TABLE IF NOT EXISTS users (
 - **Validation**: Pre-validates before database operations
 - **Abstraction**: Controller doesn't need to know about database details
 
+**What is Business Logic?**:
+Business logic implements the **rules and workflows** of your application. It answers "WHAT should the application do?" rather than "HOW to do it".
+
+**Examples of Business Logic in UserService**:
+- **Rule**: "Username must be unique" → Service checks if username exists before creating
+- **Rule**: "Email must be unique" → Service checks if email exists before creating  
+- **Rule**: "If user not found, return 404 error" → Service throws `UserNotFoundException`
+- **Rule**: "API should return DTOs, not domain models" → Service converts `User` to `UserResponse`
+- **Workflow**: "Create user transactionally" → Service uses `@Transactional` to ensure all-or-nothing
+
 **Key Operations**:
 
 1. **createUser()**:
-   - Checks if username exists (before database)
-   - Checks if email exists (before database)
+   - **Business Logic**: Checks if username exists (business rule enforcement)
+   - **Business Logic**: Checks if email exists (business rule enforcement)
    - Creates user entity
-   - Saves to database
-   - Returns DTO (not domain model)
+   - Saves to database (delegates to Repository)
+   - **Business Logic**: Returns DTO (not domain model) - API contract enforcement
 
 2. **getUserById()**:
-   - Fetches user
-   - Throws `UserNotFoundException` if not found (not null)
-   - Converts to DTO
+   - Fetches user (delegates to Repository)
+   - **Business Logic**: Throws `UserNotFoundException` if not found (business rule: "resource not found = 404")
+   - **Business Logic**: Converts to DTO (API contract)
 
 3. **getUserByUsername()**:
    - Useful for authentication/login scenarios
    - Returns user by username
+   - **Business Logic**: Converts to DTO and handles not-found scenario
 
 4. **getAllUsers()**:
    - Returns list of all users
-   - Converts domain models to DTOs
+   - **Business Logic**: Converts domain models to DTOs (API contract)
 
 **Why @Transactional?**:
 - Ensures all database operations succeed or fail together
